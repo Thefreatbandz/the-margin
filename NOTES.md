@@ -18,6 +18,9 @@ Gold ink on black pages. Boss: THE REDACTOR every 5 minutes.
   (3 upgrade cards, pauses the tree), `sfx.gd` (pooled SFX), `ringfx.gd`
   (ink-nova ring).
 - `audio/` — procedural WAVs; regenerate with `python3 tools/gen_sfx.py`.
+- `art/` — sprite art (gold-ink-on-black etchings, 512px RGBA): scribe, quill,
+  page_shard, ink_blot, margin_scribble, redactor, ink_gem, flourish.
+  Shared via `main.gd`'s `ART` const (preloaded once, never duplicated).
 - `export_presets.cfg` — `Web` preset, `variant/thread_support=false`
   (nothreads template: runs on plain static hosting, no COOP/COEP headers).
 - `build/` (gitignored) — export staging. `docs/` — the shipped web build

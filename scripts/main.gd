@@ -13,6 +13,19 @@ const LevelUpScript := preload("res://scripts/levelup.gd")
 const SfxScript := preload("res://scripts/sfx.gd")
 const RingFxScript := preload("res://scripts/ringfx.gd")
 
+# Shared sprite art (gold-ink-on-black etchings). Preloaded once here and
+# referenced by player/enemy/gem — never duplicated per entity.
+const ART := {
+	"scribe": preload("res://art/scribe.png"),
+	"quill": preload("res://art/quill.png"),
+	"shard": preload("res://art/page_shard.png"),
+	"blot": preload("res://art/ink_blot.png"),
+	"scribble": preload("res://art/margin_scribble.png"),
+	"redactor": preload("res://art/redactor.png"),
+	"gem": preload("res://art/ink_gem.png"),
+	"flourish": preload("res://art/flourish.png"),
+}
+
 const GOLD := Color(0.91, 0.78, 0.42)
 const GOLD_DIM := Color(0.55, 0.45, 0.25)
 const PAPER := Color(0.85, 0.82, 0.72)
@@ -40,6 +53,26 @@ const UPGRADES := [
 const MAX_ENEMIES := 150
 const MAX_GEMS := 240
 const BOSS_EVERY := 300.0
+
+# One-shot death burst: expanding gold ring + fading core. Pooled by count.
+class DeathBurst extends Node2D:
+	var t := 0.0
+	var dur := 0.38
+	var max_r := 46.0
+	var col := Color(0.91, 0.78, 0.42)
+	func _process(delta: float) -> void:
+		t += delta
+		if t >= dur:
+			queue_free()
+			return
+		queue_redraw()
+	func _draw() -> void:
+		var k: float = t / dur
+		var fade := (1.0 - k)
+		draw_arc(Vector2.ZERO, max_r * (0.25 + 0.75 * k), 0, TAU, 28,
+			Color(col.r, col.g, col.b, fade * 0.9), 3.0)
+		draw_circle(Vector2.ZERO, max_r * 0.30 * (1.0 - k),
+			Color(col.r, col.g, col.b, fade * 0.5))
 
 var state := "title"  # title | playing | levelup | dead
 var run_time := 0.0
@@ -72,6 +105,7 @@ var title_hint: Label
 var death_layer: CanvasLayer
 var death_stats: Label
 var blink_t := 0.0
+var live_bursts := 0  # death-burst pool counter (cap 20)
 
 # QA hooks (command-line only; never active in the shipped game).
 var autotest := false
@@ -196,6 +230,33 @@ func _build_title() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.color = Color(0, 0, 0, 1)
 	root.add_child(bg)
+
+	# Etched gold corner flourishes, like a book plate.
+	var fl := TextureRect.new()
+	fl.texture = ART["flourish"]
+	fl.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	fl.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	fl.anchor_left = 0.0
+	fl.anchor_right = 0.0
+	fl.offset_left = 20.0
+	fl.offset_right = 210.0
+	fl.offset_top = 20.0
+	fl.offset_bottom = 210.0
+	fl.modulate.a = 0.9
+	root.add_child(fl)
+	var fr := TextureRect.new()
+	fr.texture = ART["flourish"]
+	fr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	fr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	fr.anchor_left = 1.0
+	fr.anchor_right = 1.0
+	fr.offset_left = -210.0
+	fr.offset_right = -20.0
+	fr.offset_top = 20.0
+	fr.offset_bottom = 210.0
+	fr.flip_h = true
+	fr.modulate.a = 0.9
+	root.add_child(fr)
 
 	var cc := CenterContainer.new()
 	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -477,10 +538,27 @@ func on_enemy_killed(e) -> void:
 	enemies.erase(e)
 	kills += 1
 	add_gem(e.global_position, e.xp_value)
+	death_burst(e.global_position, GOLD, e.radius * (2.4 if e.is_boss else 1.6))
 	if e.is_boss:
 		boss_active = false
 		boss_ref = null
 		hud.hide_boss()
+
+
+func death_burst(pos: Vector2, col: Color, size: float) -> void:
+	if live_bursts >= 20:
+		return
+	live_bursts += 1
+	var b := DeathBurst.new()
+	b.position = pos
+	b.col = col
+	b.max_r = size
+	b.tree_exited.connect(_on_burst_done)
+	world.add_child(b)
+
+
+func _on_burst_done() -> void:
+	live_bursts -= 1
 
 
 func add_gem(pos: Vector2, value: int) -> void:

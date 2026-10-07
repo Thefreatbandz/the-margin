@@ -28,6 +28,16 @@ var nova_acc := 0.0
 var iframes := 0.0
 var godmode := false  # QA screenshot mode only
 
+# Sprite art (built lazily on first frame; textures shared via main.ART).
+var body: Sprite2D = null
+var quill_pivot: Node2D = null
+var quill: Sprite2D = null
+var body_s := 0.1875  # 512px art -> ~96px on screen
+var anim_t := 0.0
+var flash := 0.0
+var last_pos := Vector2.ZERO
+var move_k := 0.0
+
 
 func reset() -> void:
 	max_hp = 110.0
@@ -59,6 +69,7 @@ func take_damage(d: float) -> void:
 		return
 	hp -= d
 	iframes = 0.75
+	flash = 0.12
 	main.sfx.play("hurt")
 	if hp <= 0.0:
 		hp = 0.0
@@ -154,11 +165,50 @@ func _nova() -> void:
 			e.take_damage(ndmg)
 
 
+func _build_sprites() -> void:
+	body = Sprite2D.new()
+	body.texture = main.ART["scribe"]
+	body.scale = Vector2(body_s, body_s)
+	add_child(body)
+	quill_pivot = Node2D.new()
+	quill_pivot.position = Vector2(0, 6)
+	add_child(quill_pivot)
+	quill = Sprite2D.new()
+	quill.texture = main.ART["quill"]
+	var qs := 66.0 / 512.0
+	quill.scale = Vector2(qs, qs)
+	quill.position = Vector2(46, 0)
+	quill.rotation = -PI * 0.74  # nib (bottom-left in art) -> pivot +x
+	quill_pivot.add_child(quill)
+	last_pos = position
+
+
 func _process(delta: float) -> void:
 	if main == null or main.state != "playing":
 		return
+	if body == null:
+		_build_sprites()
 	# Move.
 	position += _move_dir() * speed * delta
+	# Sprite animation: idle bob, walk squash-and-stretch, lean, hit flash.
+	anim_t += delta
+	var vel: Vector2 = (position - last_pos) / maxf(delta, 0.0001)
+	last_pos = position
+	move_k = lerpf(move_k, clampf(vel.length() / maxf(speed, 1.0), 0.0, 1.0),
+		minf(1.0, 10.0 * delta))
+	var pulse: float = sin(anim_t * 11.0) * 0.045 * move_k
+	body.position = Vector2(0, sin(anim_t * 3.2) * 2.5)
+	body.scale = Vector2(body_s * (1.0 + pulse), body_s * (1.0 - pulse))
+	body.rotation = clampf(vel.x * 0.00035, -0.14, 0.14)
+	if flash > 0.0:
+		flash -= delta
+		var f: float = clampf(flash / 0.12, 0.0, 1.0)
+		var fc := Color(1.0 + 1.4 * f, 1.0 + 1.2 * f, 1.0 + 0.7 * f)
+		body.self_modulate = fc
+		quill.self_modulate = fc
+	else:
+		body.self_modulate = Color.WHITE
+		quill.self_modulate = Color.WHITE
 	# Regen + iframes.
 	if regen > 0.0:
 		hp = minf(max_hp, hp + regen * delta)
@@ -171,6 +221,7 @@ func _process(delta: float) -> void:
 	var foe = _nearest_enemy()
 	if foe != null:
 		aim = (foe.global_position - global_position).angle()
+	quill_pivot.rotation = aim
 	# Auto-fire.
 	fire_acc += delta
 	var interval := 1.0 / maxf(0.2, fire_rate)
@@ -184,26 +235,3 @@ func _process(delta: float) -> void:
 		if nova_acc >= nint:
 			nova_acc = 0.0
 			_nova()
-	queue_redraw()
-
-
-func _draw() -> void:
-	# Soft ink-glow underfoot.
-	draw_circle(Vector2.ZERO, 30.0, Color(0.91, 0.78, 0.42, 0.07))
-	# Cloak.
-	var cloak := PackedVector2Array([
-		Vector2(0, -30), Vector2(-22, 20), Vector2(0, 11), Vector2(22, 20)])
-	draw_colored_polygon(cloak, ROBE)
-	draw_polyline(PackedVector2Array([Vector2(-22, 20), Vector2(0, -30), Vector2(22, 20)]), GOLD_DIM, 2.0)
-	# Hood + gold-rimmed face shadow.
-	draw_circle(Vector2(0, -16), 11.0, Color(0.07, 0.06, 0.09))
-	draw_arc(Vector2(0, -16), 11.0, 0.0, TAU, 20, GOLD_DIM, 2.0)
-	# Eyes like candle flames.
-	draw_circle(Vector2(-4, -17), 2.4, GOLD)
-	draw_circle(Vector2(4, -17), 2.4, GOLD)
-	# Quill aimed at the nearest foe.
-	var d := Vector2.from_angle(aim)
-	var base: Vector2 = d * 14.0
-	draw_line(base, base + d * 30.0, GOLD, 3.5)
-	draw_line(base + d * 30.0, base + d * 38.0, Color(1.0, 0.96, 0.80), 2.0)
-	draw_circle(base + d * 40.0, 3.2, Color(1.0, 0.96, 0.80))
