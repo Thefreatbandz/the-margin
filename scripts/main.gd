@@ -165,13 +165,13 @@ func _ready() -> void:
 	_build_death()
 
 	if autotest or soak or shots:
+		# Keep ticking (for _autotest_tick/_shots_tick) even while the tree
+		# is paused for the level-up overlay.
+		process_mode = Node.PROCESS_MODE_ALWAYS
 		if shots:
 			player.godmode = true
 			shots_quiet = true  # the forced level-up in step 2 re-enables it
-			# Keep ticking (for _shots_tick) even while the tree is paused
-			# for the level-up overlay. The title stays up until step 0
-			# of the shot script starts the game.
-			process_mode = Node.PROCESS_MODE_ALWAYS
+			# The title stays up until step 0 of the shot script starts the game.
 		else:
 			start_game()
 		if autotest or soak:

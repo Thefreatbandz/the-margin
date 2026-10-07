@@ -67,7 +67,14 @@ func take_damage(d: float) -> void:
 
 func _move_dir() -> Vector2:
 	if main.autotest or main.shots:
-		# QA: lazy loop so combat happens on its own.
+		# QA: kite away from the nearest foe, the way a human plays.
+		var threat = _nearest_enemy()
+		if threat != null:
+			var away: Vector2 = global_position - threat.global_position
+			if away.length_squared() > 1.0:
+				away = away.normalized()
+				var side := Vector2(-away.y, away.x)
+				return (away + side * 0.45).normalized()
 		return Vector2.from_angle(main.test_t * 0.5)
 	var v := Vector2.ZERO
 	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP):

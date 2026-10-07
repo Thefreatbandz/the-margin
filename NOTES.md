@@ -65,8 +65,11 @@ First-time Pages enable (already done for this repo):
 ## Tuning knobs (all in `scripts/main.gd` / `player.gd`)
 
 - `ETYPES` — per-kind hp/spd/dmg/xp/radius/unlock-time/weight.
-- HP scale: `1 + (run_time/60) * 0.35`; spawn interval `max(0.16, 0.6 - t*0.0012)`,
+  (typo 16/88/6, shard 46/82/14 @45s, blot 95/64/20 @110s, scribble 160/122/26 @180s;
+  elites 9x hp after 100s.)
+- HP scale: `1 + (run_time/60) * 0.35`; spawn interval `max(0.18, 0.7 - t*0.0013)`,
   batch `1 + t/70` (cap 6); `MAX_ENEMIES = 150`.
 - `BOSS_EVERY = 300.0`; boss hp `2400 * (1 + 0.85*boss_count)`.
 - `UPGRADES` pool + `apply_upgrade()`; `xp_for_level(lv) = 8 + (lv-1)*6`.
-- Player base stats in `player.gd` (`reset()`).
+- Player base stats in `player.gd` (`reset()`): 110 HP, 305 speed, 12 dmg,
+  2.2 shots/s, 115 magnet, 0.75s iframes.
