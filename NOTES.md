@@ -18,9 +18,26 @@ Gold ink on black pages. Boss: THE REDACTOR every 5 minutes.
   (3 upgrade cards, pauses the tree), `sfx.gd` (pooled SFX), `ringfx.gd`
   (ink-nova ring).
 - `audio/` — procedural WAVs; regenerate with `python3 tools/gen_sfx.py`.
-- `art/` — sprite art (gold-ink-on-black etchings, 512px RGBA): scribe, quill,
+- `art/` — v2 sprite art (gold-ink-on-black etchings, 512px RGBA): scribe, quill,
   page_shard, ink_blot, margin_scribble, redactor, ink_gem, flourish.
   Shared via `main.gd`'s `ART` const (preloaded once, never duplicated).
+- `art/v3/` — v3 figure parts (512px RGBA, tight-cropped; 1024px originals in
+  `art/v3/src/`, gitignored): scribe_torso/hood/arm_r/arm_l/panel_l/panel_r,
+  blot_body/tendril_l/r, scribble_body/legs_l/r, shard_body/wing,
+  redactor_torso/head/arm_l/r. White-bg generations keyed via edge flood-fill
+  (`/tmp/key_white.py`); verified clean on black before shipping.
+- `scripts/rig.gd` — v3 skeletal rigs: builds Skeleton2D + Bone2D hierarchies
+  with rigid Sprite2D parts parented to bones (no skinning — cheap at 150
+  enemies) + AnimationPlayer with eased keyframes, all in code.
+  Scribe: Hips>Torso>Head/ArmL, Hips>PanelL/R, plus an aim-driven AimPivot for
+  the quill arm (rotation = live aim; attack anim punches position only).
+  Anims: idle/walk/attack/hit/die (scribe); move/lunge/hit/die (enemies);
+  move/slam_windup/slam/hit/die (redactor). Enemies face the player
+  (head toward prey); boss slam: 0.7s telegraphed wind-up, then smash +
+  ring FX + 38 dmg within 165px, 4.5s cooldown. Player death: 0.55s crumple
+  before the death screen (timer-based, is_instance_valid-guarded).
+  Known Godot 4.7 quirk: one benign `det == 0` engine warning per Bone2D on
+  first setup (rendering unaffected).
 - `export_presets.cfg` — `Web` preset, `variant/thread_support=false`
   (nothreads template: runs on plain static hosting, no COOP/COEP headers).
 - `build/` (gitignored) — export staging. `docs/` — the shipped web build
