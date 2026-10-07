@@ -35,6 +35,7 @@ func _process(delta: float) -> void:
 		var rr: float = e.radius + 9.0
 		if global_position.distance_squared_to(e.global_position) < rr * rr:
 			e.take_damage(dmg)
+			e.position += dir * 14.0  # ink splatter shoves foes back
 			main.sfx.play("hit")
 			if pierce > 0:
 				pierce -= 1

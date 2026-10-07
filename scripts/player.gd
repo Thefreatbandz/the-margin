@@ -18,7 +18,7 @@ var dmg := 12.0
 var fire_rate := 2.2
 var projectiles := 1
 var pierce := 0
-var magnet_r := 115.0
+var magnet_r := 140.0
 var regen := 0.0
 var nova_level := 0
 
@@ -37,7 +37,7 @@ func reset() -> void:
 	fire_rate = 2.2
 	projectiles = 1
 	pierce = 0
-	magnet_r = 115.0
+	magnet_r = 140.0
 	regen = 0.0
 	nova_level = 0
 	aim = 0.0
@@ -67,15 +67,39 @@ func take_damage(d: float) -> void:
 
 func _move_dir() -> Vector2:
 	if main.autotest or main.shots:
-		# QA: kite away from the nearest foe, the way a human plays.
-		var threat = _nearest_enemy()
-		if threat != null:
-			var away: Vector2 = global_position - threat.global_position
+		# QA bot: flee the centroid of nearby foes (avoids surround), vacuum
+		# the nearest gem when the coast is clear — like a human kiting.
+		var cx := 0.0
+		var cy := 0.0
+		var n := 0
+		for e in main.enemies:
+			if not is_instance_valid(e):
+				continue
+			var d2: float = global_position.distance_squared_to(e.global_position)
+			if d2 < 200.0 * 200.0:
+				cx += e.global_position.x
+				cy += e.global_position.y
+				n += 1
+		if n > 0:
+			var away := Vector2(global_position.x - cx / n, global_position.y - cy / n)
 			if away.length_squared() > 1.0:
 				away = away.normalized()
 				var side := Vector2(-away.y, away.x)
-				return (away + side * 0.45).normalized()
-		return Vector2.from_angle(main.test_t * 0.5)
+				return (away + side * 0.35).normalized()
+		var best_g = null
+		var best_gd2 := 1e18
+		for g in main.gems:
+			if not is_instance_valid(g):
+				continue
+			var gd2: float = global_position.distance_squared_to(g.global_position)
+			if gd2 < best_gd2:
+				best_gd2 = gd2
+				best_g = g
+		if best_g != null:
+			var to_g: Vector2 = best_g.global_position - global_position
+			if to_g.length_squared() > 900.0:
+				return to_g.normalized()
+		return Vector2.from_angle(main.test_t * 0.42)
 	var v := Vector2.ZERO
 	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP):
 		v.y -= 1.0

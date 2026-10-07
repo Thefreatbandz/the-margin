@@ -36,7 +36,12 @@ plus the on-screen joystick, so nothing needs configuring.
   `xvfb-run -a ~/workspace/godot/Godot_v4.7.2-stable_linux.x86_64 --path . --resolution 720x1280 -- --shots`
 - `-- --autotest` — 30s game-time soak at 8x with auto-picked upgrades,
   prints `AUTOTEST_SUMMARY` (kills/level/enemies/...) then quits.
-- `-- --soak` — 150s game-time soak, same summary.
+- `-- --soak` — 150s game-time soak, same summary. Add `--realtime` to run
+  at 1x (honest balance signal; 8x tunnels bullets through enemies).
+  Prints `SOAKDBG` lines every 30s in soak mode.
+- `-- --deathshot` — verifies the death screen + restart button: force-kills
+  the Scribe, saves `qa/death.png`, presses restart (scene reload), saves
+  `qa/restarted.png` once the fresh run is playing.
 
 ## Export (headless)
 
@@ -72,4 +77,4 @@ First-time Pages enable (already done for this repo):
 - `BOSS_EVERY = 300.0`; boss hp `2400 * (1 + 0.85*boss_count)`.
 - `UPGRADES` pool + `apply_upgrade()`; `xp_for_level(lv) = 8 + (lv-1)*6`.
 - Player base stats in `player.gd` (`reset()`): 110 HP, 305 speed, 12 dmg,
-  2.2 shots/s, 115 magnet, 0.75s iframes.
+  2.2 shots/s, 140 magnet, 0.75s iframes. Bullets shove enemies 14px.

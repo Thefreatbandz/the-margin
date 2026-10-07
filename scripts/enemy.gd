@@ -76,7 +76,7 @@ func _process(delta: float) -> void:
 		position += (dir + side * w).normalized() * spd * delta
 	# Contact damage.
 	if dist < radius + 20.0 and touch_cd <= 0.0:
-		touch_cd = 0.8
+		touch_cd = 1.0
 		main.player.take_damage(dmg)
 	queue_redraw()
 

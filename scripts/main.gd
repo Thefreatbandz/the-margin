@@ -19,7 +19,7 @@ const PAPER := Color(0.85, 0.82, 0.72)
 
 # kind -> base stats. unlock = seconds when the kind joins the horde.
 const ETYPES := {
-	"typo": {"hp": 16.0, "spd": 88.0, "dmg": 6.0, "xp": 1, "r": 15.0, "unlock": 0.0, "w": 100.0},
+	"typo": {"hp": 16.0, "spd": 80.0, "dmg": 6.0, "xp": 1, "r": 15.0, "unlock": 0.0, "w": 100.0},
 	"shard": {"hp": 46.0, "spd": 82.0, "dmg": 14.0, "xp": 3, "r": 19.0, "unlock": 45.0, "w": 70.0},
 	"blot": {"hp": 95.0, "spd": 64.0, "dmg": 20.0, "xp": 6, "r": 23.0, "unlock": 110.0, "w": 55.0},
 	"scribble": {"hp": 160.0, "spd": 122.0, "dmg": 26.0, "xp": 10, "r": 21.0, "unlock": 180.0, "w": 45.0},
@@ -81,6 +81,9 @@ var shots_quiet := false  # shots mode: stop opening the level-up overlay
 var shot_step := 0
 var shot_frames := 0
 var test_t := 0.0
+var gems_collected := 0
+var _last_dbg := -1
+var deathshot := 0  # 0=off, 1=death-screen test, 2=post-restart verify
 
 
 # ---------------------------------------------------------------- build
@@ -177,6 +180,9 @@ func _ready() -> void:
 		if autotest or soak:
 			if not ("--realtime" in args):
 				Engine.time_scale = 8.0
+	if "--deathshot" in args:
+		deathshot = 2 if get_tree().has_meta("deathshot_done") else 1
+		process_mode = Node.PROCESS_MODE_ALWAYS
 
 
 func _build_title() -> void:
@@ -344,6 +350,7 @@ func xp_for_level(lv: int) -> int:
 func add_xp(v: int) -> void:
 	if state != "playing":
 		return
+	gems_collected += 1
 	xp += v
 	while xp >= xp_next:
 		xp -= xp_next
@@ -506,6 +513,10 @@ func _process(delta: float) -> void:
 	test_t += delta
 	if shots:
 		_shots_tick()
+	if deathshot == 1:
+		_deathshot_tick()
+	elif deathshot == 2:
+		_restart_verify_tick()
 	if state == "title":
 		blink_t += delta
 		if title_hint != null:
@@ -521,7 +532,7 @@ func _process(delta: float) -> void:
 
 	# Spawning.
 	spawn_acc += delta
-	var interval := maxf(0.18, 0.7 - run_time * 0.0013)
+	var interval := maxf(0.2, 0.9 - run_time * 0.0015)
 	if boss_active:
 		interval *= 1.7
 	if spawn_acc >= interval:
@@ -539,6 +550,12 @@ func _process(delta: float) -> void:
 		hud.set_boss_hp(boss_ref.hp, boss_ref.max_hp)
 
 	hud.update_hud(player.hp, player.max_hp, xp, xp_next, level, run_time, kills)
+
+	if soak and int(run_time) % 30 == 0 and int(run_time) != _last_dbg:
+		_last_dbg = int(run_time)
+		print("SOAKDBG t=%d kills=%d lvl=%d hp=%.0f enemies=%d gems_ground=%d collected=%d stacks=%s" % [
+			int(run_time), kills, level, player.hp, enemies.size(), gems.size(),
+			gems_collected, str(stacks)])
 
 	if autotest or soak:
 		_autotest_tick()
@@ -561,6 +578,62 @@ func _save_shot(name: String) -> void:
 	var img: Image = get_viewport().get_texture().get_image()
 	var err := img.save_png("/home/hatch/workspace/margin/qa/%s.png" % name)
 	print("SHOT %s err=%d" % [name, err])
+
+
+func _deathshot_tick() -> void:
+	# Phase 1: start, get killed, screenshot the death screen, hit restart.
+	shot_frames += 1
+	match shot_step:
+		0:
+			if shot_frames >= 12:
+				shot_step = 1
+				shot_frames = 0
+				start_game()
+				player.hp = 5.0
+				# Drop a kill squad right on the Scribe.
+				for i in 6:
+					var e = EnemyScript.new()
+					world.add_child(e)
+					e.setup("typo", ETYPES["typo"], false,
+						player.global_position + Vector2(float(i) * 9.0, 0.0), self)
+					enemies.append(e)
+		1:
+			if state == "dead" and shot_frames >= 25:
+				_save_shot("death")
+				shot_step = 2
+				shot_frames = 0
+		2:
+			if shot_frames >= 20:
+				get_tree().set_meta("deathshot_done", true)
+				_on_restart_pressed()  # reloads the scene; phase 2 verifies
+				shot_step = 3
+				shot_frames = 0
+		3:
+			if shot_frames >= 30:
+				# Reload should have happened; safety net.
+				print("DEATHSHOT_STUCK")
+				get_tree().quit()
+
+
+func _restart_verify_tick() -> void:
+	# Phase 2 (fresh scene after reload): title must be up; start and play.
+	shot_frames += 1
+	match shot_step:
+		0:
+			if shot_frames >= 30 and state == "title":
+				_save_shot("title_after_restart")
+				start_game()
+				shot_step = 1
+				shot_frames = 0
+		1:
+			if state == "playing" and run_time >= 4.0:
+				_save_shot("restarted")
+				shot_step = 2
+				shot_frames = 0
+		2:
+			if shot_frames >= 10:
+				print("DEATHSHOT_DONE")
+				get_tree().quit()
 
 
 func _shots_tick() -> void:
