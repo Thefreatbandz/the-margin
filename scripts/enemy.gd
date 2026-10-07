@@ -21,8 +21,21 @@ var touch_cd := 0.0
 var hit_flash := 0.0
 var wob := 0.0
 var wob_seed := 0.0
-var spr: Sprite2D = null  # sprite art for shard/blot/scribble/redactor
-var spr_base := 1.0
+# v3 skeletal rig (shard/blot/scribble/redactor). Typo stays a text glyph.
+var rig: Node2D = null
+var anim: AnimationPlayer = null
+var part_sprites: Array = []
+var dying := false
+var die_t := 0.0
+var hit_t := 0.0
+var lunge_t := 0.0
+var lunge_cd := 0.0
+var slam_cd := 3.0
+var windup_t := 0.0
+var slam_t := 0.0
+var face := 0.0
+
+const RIG_SCALE := {"shard": 0.115, "blot": 0.13, "scribble": 0.11, "redactor": 0.23}
 
 
 func setup(p_kind: String, stats: Dictionary, p_elite: bool, pos: Vector2, p_main) -> void:
@@ -49,22 +62,41 @@ func setup(p_kind: String, stats: Dictionary, p_elite: bool, pos: Vector2, p_mai
 		var letters := "etaoinshrdlcumwfgypbvkjxqz"
 		letter = letters[randi() % letters.length()]
 	if kind != "typo" and main != null:
-		# Sprite art shared via main.ART (one texture, never duplicated).
-		spr = Sprite2D.new()
-		spr.texture = main.ART[kind]
-		spr_base = (radius * 2.0) / (512.0 * 0.85)
-		spr.scale = Vector2(spr_base, spr_base)
-		add_child(spr)
+		# Skeletal rig shared via main.ART (textures preloaded once).
+		var r: Dictionary = Rig.enemy(kind, main.ART)
+		rig = r["root"]
+		anim = r["anim"]
+		part_sprites = r["sprites"]
+		var sc: float = float(RIG_SCALE.get(kind, 0.12))
+		if elite:
+			sc *= 1.55
+		rig.scale = Vector2(sc, sc)
+		add_child(rig)
+		anim.play("move")
 
 
 func take_damage(d: float) -> void:
-	if main == null or main.state != "playing":
+	if main == null or main.state != "playing" or dying:
 		return
 	hp -= d
 	hit_flash = 0.12
 	if hp <= 0.0:
-		main.on_enemy_killed(self)
-		queue_free()
+		dying = true
+		die_t = 0.45
+		if anim != null:
+			anim.play("die")
+	else:
+		if hit_t <= 0.0 and anim != null:
+			anim.play("hit")
+			hit_t = 0.2
+		_set_flash(1.0)
+
+
+func _set_flash(f: float) -> void:
+	var c := Color(1.0 + 1.6 * f, 1.0 + 1.4 * f, 1.0 + 0.8 * f)
+	for s in part_sprites:
+		if is_instance_valid(s):
+			(s as Sprite2D).self_modulate = c
 
 
 func _process(delta: float) -> void:
@@ -73,11 +105,47 @@ func _process(delta: float) -> void:
 	wob += delta
 	if hit_flash > 0.0:
 		hit_flash -= delta
+		if hit_flash <= 0.0:
+			_set_flash(0.0)
 	if touch_cd > 0.0:
 		touch_cd -= delta
-	# Chase with a slight sideways wobble so hordes don't perfectly stack.
+	# Dying: the collapse animation plays out, then the kill resolves.
+	if dying:
+		die_t -= delta
+		if die_t <= 0.0:
+			main.on_enemy_killed(self)
+			queue_free()
+		return
 	var to_p: Vector2 = main.player.global_position - global_position
 	var dist: float = to_p.length()
+	# Face the player (rigged kinds only — typo glyphs stay upright).
+	# Figures are drawn head-up (-y), so rotate head toward the player.
+	if kind != "typo" and dist > 1.0:
+		face = lerp_angle(face, to_p.angle() + PI * 0.5, minf(1.0, 8.0 * delta))
+		rotation = face
+	# Boss slam state machine (drives its own animations).
+	if is_boss:
+		_boss_slam(delta, dist)
+	elif lunge_cd > 0.0:
+		lunge_cd -= delta
+	# Skeletal animation state: slam > hit > lunge > move.
+	if anim != null:
+		if windup_t > 0.0 or slam_t > 0.0:
+			pass  # slam anims are driven by _boss_slam
+		elif hit_t > 0.0:
+			hit_t -= delta
+		elif lunge_t > 0.0:
+			lunge_t -= delta
+			if lunge_t <= 0.0:
+				anim.play("move")
+		elif anim.current_animation != "move":
+			anim.play("move")
+		if not is_boss and lunge_t <= 0.0 and hit_t <= 0.0 and lunge_cd <= 0.0 \
+				and dist < radius + 60.0 and dist > 1.0:
+			anim.play("lunge")
+			lunge_t = 0.35
+			lunge_cd = 2.0 + randf() * 1.5
+	# Chase with a slight sideways wobble so hordes don't perfectly stack.
 	if dist > 1.0:
 		var dir: Vector2 = to_p / dist
 		var side := Vector2(-dir.y, dir.x)
@@ -87,23 +155,34 @@ func _process(delta: float) -> void:
 	if dist < radius + 20.0 and touch_cd <= 0.0:
 		touch_cd = 1.0
 		main.player.take_damage(dmg)
-	# Procedural sprite animation: wobble, bob, hit flash, boss menace pulse.
-	if spr != null:
-		var w1: float = sin(wob * 2.6 + wob_seed)
-		var w2: float = sin(wob * 3.9 + wob_seed * 1.7)
-		spr.rotation = w1 * 0.10
-		var s: float = spr_base * (1.0 + 0.05 * w2)
-		if is_boss:
-			s *= 1.0 + 0.06 * sin(wob * 2.1)
-		spr.scale = Vector2(s, s)
-		if hit_flash > 0.0:
-			var f: float = clampf(hit_flash / 0.12, 0.0, 1.0)
-			spr.self_modulate = Color(1.0 + 1.6 * f, 1.0 + 1.4 * f, 1.0 + 0.8 * f)
-		else:
-			spr.self_modulate = Color.WHITE
-	# Typo glyphs and elite rings are still code-drawn; sprites need no redraw.
+	# Typo glyphs and elite rings are still code-drawn.
 	if kind == "typo" or elite:
 		queue_redraw()
+
+
+func _boss_slam(delta: float, dist: float) -> void:
+	if slam_cd > 0.0:
+		slam_cd -= delta
+	if windup_t > 0.0:
+		windup_t -= delta
+		if windup_t <= 0.0:
+			if anim != null:
+				anim.play("slam")
+			slam_t = 0.3
+			main.ring_fx(global_position, 190.0)
+			main.sfx.play("nova")
+			if dist < 165.0:
+				main.player.take_damage(38.0)
+		return
+	if slam_t > 0.0:
+		slam_t -= delta
+		if slam_t <= 0.0 and anim != null:
+			anim.play("move")
+		return
+	if slam_cd <= 0.0 and dist < 190.0 and anim != null:
+		anim.play("slam_windup")
+		windup_t = 0.7
+		slam_cd = 4.5
 
 
 func _flash_col(base: Color) -> Color:

@@ -1,3 +1,5 @@
 build/
 qa/
 .godot/
+art/v3/src/
+art/v3/_compose/

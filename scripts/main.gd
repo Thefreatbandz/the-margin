@@ -16,12 +16,24 @@ const RingFxScript := preload("res://scripts/ringfx.gd")
 # Shared sprite art (gold-ink-on-black etchings). Preloaded once here and
 # referenced by player/enemy/gem — never duplicated per entity.
 const ART := {
-	"scribe": preload("res://art/scribe.png"),
-	"quill": preload("res://art/quill.png"),
-	"shard": preload("res://art/page_shard.png"),
-	"blot": preload("res://art/ink_blot.png"),
-	"scribble": preload("res://art/margin_scribble.png"),
-	"redactor": preload("res://art/redactor.png"),
+	"scribe_torso": preload("res://art/v3/scribe_torso.png"),
+	"scribe_hood": preload("res://art/v3/scribe_hood.png"),
+	"scribe_arm_r": preload("res://art/v3/scribe_arm_r.png"),
+	"scribe_arm_l": preload("res://art/v3/scribe_arm_l.png"),
+	"scribe_panel_l": preload("res://art/v3/scribe_panel_l.png"),
+	"scribe_panel_r": preload("res://art/v3/scribe_panel_r.png"),
+	"blot_body": preload("res://art/v3/blot_body.png"),
+	"blot_tendril_l": preload("res://art/v3/blot_tendril_l.png"),
+	"blot_tendril_r": preload("res://art/v3/blot_tendril_r.png"),
+	"scribble_body": preload("res://art/v3/scribble_body.png"),
+	"scribble_legs_l": preload("res://art/v3/scribble_legs_l.png"),
+	"scribble_legs_r": preload("res://art/v3/scribble_legs_r.png"),
+	"shard_body": preload("res://art/v3/shard_body.png"),
+	"shard_wing": preload("res://art/v3/shard_wing.png"),
+	"redactor_torso": preload("res://art/v3/redactor_torso.png"),
+	"redactor_head": preload("res://art/v3/redactor_head.png"),
+	"redactor_arm_l": preload("res://art/v3/redactor_arm_l.png"),
+	"redactor_arm_r": preload("res://art/v3/redactor_arm_r.png"),
 	"gem": preload("res://art/ink_gem.png"),
 	"flourish": preload("res://art/flourish.png"),
 }
@@ -282,6 +294,15 @@ func _build_title() -> void:
 	title_hint = _label("— tap or press any key to begin —", 28, GOLD)
 	vb.add_child(title_hint)
 	vb.add_child(_label("WASD / arrows · touch joystick", 20, GOLD_DIM))
+
+	# The Scribe himself, idling beneath the title — v3 skeletal rig showcase.
+	var vs: Vector2 = get_viewport().get_visible_rect().size
+	var sr: Dictionary = Rig.scribe(ART)
+	var scribe_show: Node2D = sr["root"]
+	scribe_show.position = Vector2(vs.x * 0.5, vs.y * 0.80)
+	scribe_show.scale = Vector2(0.2, 0.2)
+	root.add_child(scribe_show)
+	(sr["anim"] as AnimationPlayer).play("idle")
 
 
 func _build_death() -> void:
